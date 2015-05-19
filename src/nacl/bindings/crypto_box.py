@@ -27,6 +27,7 @@ crypto_box_NONCEBYTES = lib.crypto_box_noncebytes()
 crypto_box_ZEROBYTES = lib.crypto_box_zerobytes()
 crypto_box_BOXZEROBYTES = lib.crypto_box_boxzerobytes()
 crypto_box_BEFORENMBYTES = lib.crypto_box_beforenmbytes()
+crypto_box_SEALBYTES = lib.crypto_box_sealbytes()
 
 
 def crypto_box_keypair():
@@ -178,3 +179,50 @@ def crypto_box_open_afternm(ciphertext, nonce, k):
         raise CryptoError("An error occurred trying to decrypt the message")
 
     return lib.ffi.buffer(plaintext, len(padded))[crypto_box_ZEROBYTES:]
+
+
+def crypto_box_seal(message, pk):
+    """
+    Encrypts and returns a message ``message`` for a recipient with public
+    key ``pk``.
+
+    :param message: bytes
+    :param pk: bytes
+    :rtype: bytes
+    """
+    if len(pk) != crypto_box_PUBLICKEYBYTES:
+        raise ValueError("Invalid public key")
+
+    ciphertext_length = crypto_box_SEALBYTES + len(message)
+    ciphertext = lib.ffi.new("unsigned char[]", ciphertext_length)
+
+    rc = lib.crypto_box_seal(ciphertext, message, len(message), pk)
+    assert rc == 0
+
+    return lib.ffi.buffer(ciphertext, ciphertext_length)[:]
+
+
+def crypto_box_seal_open(ciphertext, pk, sk):
+    """
+    Decrypts the ciphertext ``ciphertext`` using both the recipient's public
+    key ``pk`` and secret key ``sk``.
+
+    :param ciphertext: bytes
+    :param pk: bytes
+    :param sk: bytes
+    :rtype: bytes
+    """
+    if len(pk) != crypto_box_PUBLICKEYBYTES:
+        raise ValueError("Invalid public key")
+
+    if len(sk) != crypto_box_SECRETKEYBYTES:
+        raise ValueError("Invalid secret key")
+
+    message_length = len(ciphertext) - crypto_box_SEALBYTES
+    message = lib.ffi.new("unsigned char[]", message_length)
+
+    if lib.crypto_box_seal_open(message, ciphertext, len(ciphertext),
+                                pk, sk) != 0:
+        raise CryptoError("An error occurred trying to decrypt the message")
+
+    return lib.ffi.buffer(message, message_length)[:]
